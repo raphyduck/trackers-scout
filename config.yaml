@@ -14,6 +14,46 @@ flaresolverr:
   # Timeout in milliseconds for FlareSolverr requests
   max_timeout: 60000
 
+# Invite Scanner Configuration
+# Scans the web for invite offers for your monitored trackers
+invite_scanner:
+  enabled: false  # Set to true to enable web scanning for invites
+  scan_interval_minutes: 30  # How often to scan for invites
+
+  sources:
+    # Reddit scanning - searches subreddits for invite offers
+    reddit:
+      enabled: true
+      subreddits:
+        - "invites"
+        - "trackers"
+        - "OpenSignups"
+      keywords:
+        - "invite"
+        - "invitation"
+        - "giving away"
+        - "giveaway"
+      max_age_hours: 24  # Only consider posts from the last 24 hours
+
+    # DuckDuckGo search - broader web search for invites
+    duckduckgo:
+      enabled: true
+      keywords:
+        - "invite"
+        - "invitation"
+        - "giveaway"
+
+    # Custom URLs - scan specific pages/forums for invites
+    custom_urls:
+      enabled: false
+      urls:
+        - "https://opentrackers.org/"
+        # Add more URLs to scan here
+      keywords:
+        - "invite"
+        - "invitation"
+        - "open"
+
 # Notification Configuration
 notifications:
   # Discord webhook
