@@ -333,7 +333,8 @@ class InviteScanner:
     def _scan_reddit(self, tracker_name: str) -> List[Dict]:
         """Scan Reddit for invite offers"""
         results = []
-        subreddits = self.sources.get('reddit', {}).get('subreddits', ['invites', 'trackers', 'OpenSignups'])
+        # Note: 'invites' removed from defaults - returns 403 (restricted subreddit)
+        subreddits = self.sources.get('reddit', {}).get('subreddits', ['trackers', 'OpenSignups', 'Piracy'])
         keywords = self.sources.get('reddit', {}).get('keywords', ['invite', 'invitation', 'giving away'])
         max_age_hours = self.sources.get('reddit', {}).get('max_age_hours', 24)
 
@@ -351,6 +352,11 @@ class InviteScanner:
                 logger.debug(f"Reddit: Fetching {url} with query: {params['q']}")
                 response = self.session.get(url, params=params, timeout=15)
                 logger.debug(f"Reddit: Response status {response.status_code} from r/{subreddit}")
+
+                if response.status_code != 200:
+                    logger.warning(f"Reddit r/{subreddit}: HTTP {response.status_code} - skipping this source")
+                    time.sleep(1)
+                    continue
 
                 if response.status_code == 200:
                     data = response.json()
@@ -509,23 +515,18 @@ class InviteScanner:
         forums_config = self.sources.get('invite_forums', {})
 
         # Default forum configurations
+        # Note: TorrentInvites.org removed - requires FlareSolverr due to Cloudflare
         default_forums = [
             {
                 'name': 'InviteHawk',
-                'url': 'https://www.invitehawk.com/forum/48-free-giveaways/',
-                'search_url': 'https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=48',
+                'url': 'https://www.invitehawk.com/forum/22-torrent-invite-giveaways/',
+                'search_url': 'https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=22',
                 'type': 'invisionpower'
             },
             {
-                'name': 'TorrentInvites.org',
-                'url': 'https://torrentinvites.org/f37/',
-                'search_url': 'https://torrentinvites.org/search.php?keywords={query}&fid%5B%5D=37',
-                'type': 'mybb'
-            },
-            {
                 'name': 'InviteScene',
-                'url': 'https://www.invitescene.com/forum/117-free-invites-giveaways/',
-                'search_url': 'https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=117',
+                'url': 'https://www.invitescene.com/forum/16-giveaways/',
+                'search_url': 'https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=16',
                 'type': 'invisionpower'
             },
             {
@@ -567,6 +568,11 @@ class InviteScanner:
                 logger.debug(f"Forum {forum_name}: Fetching {url}")
                 response = self.session.get(url, timeout=20)
                 logger.debug(f"Forum {forum_name}: Response status {response.status_code}")
+
+                if response.status_code != 200:
+                    logger.warning(f"Forum {forum_name}: HTTP {response.status_code} - skipping this source")
+                    time.sleep(2)
+                    continue
 
                 if response.status_code == 200:
                     from bs4 import BeautifulSoup

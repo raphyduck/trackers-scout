@@ -25,11 +25,11 @@ invite_scanner:
     reddit:
       enabled: true
       subreddits:
-        - "invites"           # Main invite trading subreddit
+        # - "invites"         # Disabled: Returns 403 (restricted subreddit)
         - "trackers"          # Private tracker discussions
         - "OpenSignups"       # Open registration announcements
         - "Piracy"            # General piracy discussions
-        - "filesharing"       # File sharing community
+        # - "filesharing"     # Disabled: Returns 404 (subreddit doesn't exist)
       keywords:
         - "invite"
         - "invitation"
@@ -44,16 +44,18 @@ invite_scanner:
       enabled: true
       forums:
         - name: "InviteHawk"
-          url: "https://www.invitehawk.com/forum/48-free-giveaways/"
-          search_url: "https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=48"
+          url: "https://www.invitehawk.com/forum/22-torrent-invite-giveaways/"
+          search_url: "https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=22"
           type: "invisionpower"
-        - name: "TorrentInvites.org"
-          url: "https://torrentinvites.org/f37/"
-          search_url: "https://torrentinvites.org/search.php?keywords={query}&fid%5B%5D=37"
-          type: "mybb"
+        # TorrentInvites.org - Disabled: Cloudflare protection returns 403 (needs FlareSolverr)
+        # - name: "TorrentInvites.org"
+        #   url: "https://torrentinvites.org/f37/"
+        #   search_url: "https://torrentinvites.org/search.php?keywords={query}&fid%5B%5D=37"
+        #   type: "mybb"
+        #   use_flaresolverr: true
         - name: "InviteScene"
-          url: "https://www.invitescene.com/forum/117-free-invites-giveaways/"
-          search_url: "https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=117"
+          url: "https://www.invitescene.com/forum/16-giveaways/"
+          search_url: "https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=16"
           type: "invisionpower"
         - name: "TorrentInvites.net"
           url: "https://torrentinvites.net/forums/free-invites-giveaways.6/"
