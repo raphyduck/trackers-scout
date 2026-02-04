@@ -1,14 +1,14 @@
-version: '3.8'
-
 services:
   tracker-monitor:
     build: .
     container_name: tracker-monitor
     restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
     volumes:
       - ./config:/config
     environment:
       - TZ=UTC
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}  # Set to DEBUG for more verbose output
     logging:
       driver: "json-file"
       options:

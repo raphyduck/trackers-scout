@@ -16,8 +16,9 @@ from urllib.parse import urlparse
 import yaml
 
 # Configure logging
+log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -417,13 +418,25 @@ class InviteScanner:
                                 if link_a:
                                     result_url = link_a.get('href', '')
 
-                            results.append({
-                                'source': 'DuckDuckGo',
-                                'title': title_elem.get_text(strip=True),
-                                'url': result_url,
-                                'snippet': snippet_elem.get_text(strip=True) if snippet_elem else '',
-                                'query': query
-                            })
+                            # Verify the result is actually relevant
+                            title_text = title_elem.get_text(strip=True).lower()
+                            snippet_text = snippet_elem.get_text(strip=True).lower() if snippet_elem else ''
+                            content = title_text + ' ' + snippet_text
+                            tracker_lower = tracker_name.lower()
+
+                            # Must contain tracker name AND an invite-related keyword
+                            invite_keywords = ['invite', 'invitation', 'giveaway', 'giving away', 'free invite', 'open signup', 'open registration']
+                            has_tracker = tracker_lower in content
+                            has_invite_keyword = any(kw in content for kw in invite_keywords)
+
+                            if has_tracker and has_invite_keyword:
+                                results.append({
+                                    'source': 'DuckDuckGo',
+                                    'title': title_elem.get_text(strip=True),
+                                    'url': result_url,
+                                    'snippet': snippet_elem.get_text(strip=True) if snippet_elem else '',
+                                    'query': query
+                                })
 
                 time.sleep(2)  # Rate limiting
 
