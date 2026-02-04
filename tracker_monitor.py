@@ -309,6 +309,16 @@ class InviteScanner:
                 ddg_results = self._scan_duckduckgo(tracker_name)
                 tracker_results.extend(ddg_results)
 
+            # Scan invite forums
+            if self.sources.get('invite_forums', {}).get('enabled', False):
+                forum_results = self._scan_invite_forums(tracker_name)
+                tracker_results.extend(forum_results)
+
+            # Scan Telegram channels
+            if self.sources.get('telegram_channels', {}).get('enabled', False):
+                telegram_results = self._scan_telegram_channels(tracker_name)
+                tracker_results.extend(telegram_results)
+
             # Scan custom URLs
             if self.sources.get('custom_urls', {}).get('enabled', False):
                 custom_results = self._scan_custom_urls(tracker_name)
@@ -471,6 +481,246 @@ class InviteScanner:
 
             except Exception as e:
                 logger.error(f"Error scanning custom URL {url} for {tracker_name}: {e}")
+
+        return results
+
+    def _scan_invite_forums(self, tracker_name: str) -> List[Dict]:
+        """Scan popular invite forums for giveaways"""
+        results = []
+        forums_config = self.sources.get('invite_forums', {})
+
+        # Default forum configurations
+        default_forums = [
+            {
+                'name': 'InviteHawk',
+                'url': 'https://www.invitehawk.com/forum/48-free-giveaways/',
+                'search_url': 'https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=48',
+                'type': 'invisionpower'
+            },
+            {
+                'name': 'TorrentInvites.org',
+                'url': 'https://torrentinvites.org/f37/',
+                'search_url': 'https://torrentinvites.org/search.php?keywords={query}&fid%5B%5D=37',
+                'type': 'mybb'
+            },
+            {
+                'name': 'InviteScene',
+                'url': 'https://www.invitescene.com/forum/117-free-invites-giveaways/',
+                'search_url': 'https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=117',
+                'type': 'invisionpower'
+            },
+            {
+                'name': 'TorrentInvites.net',
+                'url': 'https://torrentinvites.net/forums/free-invites-giveaways.6/',
+                'search_url': 'https://torrentinvites.net/search/?q={query}&t=post&c[node]=6',
+                'type': 'xenforo'
+            },
+            {
+                'name': 'InviteForum',
+                'url': 'https://inviteforum.com/forums/free-giveaway.8/',
+                'search_url': 'https://inviteforum.com/search/?q={query}&t=post&c[node]=8',
+                'type': 'xenforo'
+            },
+            {
+                'name': 'Opentrackers',
+                'url': 'https://opentrackers.org/',
+                'search_url': None,  # No search, scan main page
+                'type': 'wordpress'
+            }
+        ]
+
+        forums = forums_config.get('forums', default_forums)
+        keywords = forums_config.get('keywords', ['invite', 'giveaway', 'giving', 'free'])
+
+        for forum in forums:
+            try:
+                forum_name = forum.get('name', 'Unknown Forum')
+                forum_type = forum.get('type', 'generic')
+                search_url = forum.get('search_url')
+                base_url = forum.get('url')
+
+                # Use search if available, otherwise scan main page
+                if search_url:
+                    url = search_url.format(query=tracker_name)
+                else:
+                    url = base_url
+
+                response = self.session.get(url, timeout=20)
+
+                if response.status_code == 200:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    tracker_lower = tracker_name.lower()
+
+                    # Parse based on forum type
+                    if forum_type == 'xenforo':
+                        threads = soup.select('.structItem--thread, .discussionListItem')
+                        for thread in threads[:15]:
+                            title_elem = thread.select_one('.structItem-title a, .title a')
+                            if title_elem:
+                                title = title_elem.get_text(strip=True).lower()
+                                if tracker_lower in title and any(kw in title for kw in keywords):
+                                    href = title_elem.get('href', '')
+                                    if not href.startswith('http'):
+                                        href = f"https://{urlparse(url).netloc}{href}"
+                                    results.append({
+                                        'source': forum_name,
+                                        'title': title_elem.get_text(strip=True),
+                                        'url': href,
+                                        'forum_type': forum_type
+                                    })
+
+                    elif forum_type == 'invisionpower':
+                        threads = soup.select('.ipsDataItem, .cTopicList .ipsDataItem')
+                        for thread in threads[:15]:
+                            title_elem = thread.select_one('.ipsDataItem_title a, .title a')
+                            if title_elem:
+                                title = title_elem.get_text(strip=True).lower()
+                                if tracker_lower in title and any(kw in title for kw in keywords):
+                                    href = title_elem.get('href', '')
+                                    results.append({
+                                        'source': forum_name,
+                                        'title': title_elem.get_text(strip=True),
+                                        'url': href,
+                                        'forum_type': forum_type
+                                    })
+
+                    elif forum_type == 'mybb':
+                        threads = soup.select('.tborder tr, .thread_list tr')
+                        for thread in threads[:15]:
+                            title_elem = thread.select_one('a[href*="thread"]')
+                            if title_elem:
+                                title = title_elem.get_text(strip=True).lower()
+                                if tracker_lower in title and any(kw in title for kw in keywords):
+                                    href = title_elem.get('href', '')
+                                    if not href.startswith('http'):
+                                        href = f"https://{urlparse(url).netloc}/{href}"
+                                    results.append({
+                                        'source': forum_name,
+                                        'title': title_elem.get_text(strip=True),
+                                        'url': href,
+                                        'forum_type': forum_type
+                                    })
+
+                    elif forum_type == 'wordpress':
+                        # For Opentrackers - scan articles
+                        articles = soup.select('article, .post, .entry')
+                        for article in articles[:10]:
+                            title_elem = article.select_one('h2 a, h3 a, .entry-title a')
+                            content_elem = article.select_one('.entry-content, .post-content, p')
+                            if title_elem:
+                                title = title_elem.get_text(strip=True).lower()
+                                content = content_elem.get_text(strip=True).lower() if content_elem else ''
+                                full_text = title + ' ' + content
+                                if tracker_lower in full_text:
+                                    href = title_elem.get('href', '')
+                                    results.append({
+                                        'source': forum_name,
+                                        'title': title_elem.get_text(strip=True),
+                                        'url': href,
+                                        'forum_type': forum_type
+                                    })
+
+                    else:
+                        # Generic fallback - look for links containing tracker name
+                        links = soup.find_all('a', href=True)
+                        for link in links[:50]:
+                            text = link.get_text(strip=True).lower()
+                            if tracker_lower in text and any(kw in text for kw in keywords):
+                                href = link.get('href', '')
+                                if not href.startswith('http'):
+                                    href = f"https://{urlparse(url).netloc}{href}"
+                                results.append({
+                                    'source': forum_name,
+                                    'title': link.get_text(strip=True),
+                                    'url': href,
+                                    'forum_type': 'generic'
+                                })
+
+                time.sleep(2)  # Rate limiting between forums
+
+            except Exception as e:
+                logger.error(f"Error scanning forum {forum.get('name', 'unknown')} for {tracker_name}: {e}")
+
+        # Deduplicate
+        seen_urls = set()
+        unique_results = []
+        for r in results:
+            if r['url'] not in seen_urls:
+                seen_urls.add(r['url'])
+                unique_results.append(r)
+
+        return unique_results
+
+    def _scan_telegram_channels(self, tracker_name: str) -> List[Dict]:
+        """Scan public Telegram channels for invite offers"""
+        results = []
+        channels_config = self.sources.get('telegram_channels', {})
+
+        # Default channels (public web previews)
+        default_channels = [
+            {'name': 'r/trackers', 'url': 'https://t.me/s/r_trackers'},
+            {'name': 'OpenSignups', 'url': 'https://t.me/s/opensignups'},
+            {'name': 'TrackerInvites', 'url': 'https://t.me/s/trackerinvites'},
+        ]
+
+        channels = channels_config.get('channels', default_channels)
+        max_age_hours = channels_config.get('max_age_hours', 48)
+
+        for channel in channels:
+            try:
+                channel_name = channel.get('name', 'Unknown')
+                channel_url = channel.get('url')
+
+                if not channel_url:
+                    continue
+
+                # Telegram public channel preview URLs
+                response = self.session.get(channel_url, timeout=20)
+
+                if response.status_code == 200:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    tracker_lower = tracker_name.lower()
+
+                    # Telegram web preview message structure
+                    messages = soup.select('.tgme_widget_message')
+
+                    for message in messages[:30]:
+                        text_elem = message.select_one('.tgme_widget_message_text')
+                        if not text_elem:
+                            continue
+
+                        text = text_elem.get_text(strip=True).lower()
+
+                        if tracker_lower in text:
+                            # Check if it's about offering invites
+                            is_offering = any(kw in text for kw in [
+                                'invite', 'giveaway', 'giving', 'free', 'open signup',
+                                'registration open', 'signups open', 'limited signup'
+                            ])
+
+                            if is_offering:
+                                # Get message link
+                                link_elem = message.select_one('.tgme_widget_message_date')
+                                msg_url = link_elem.get('href', channel_url) if link_elem else channel_url
+
+                                # Get timestamp if available
+                                time_elem = message.select_one('time')
+                                timestamp = time_elem.get('datetime', '') if time_elem else ''
+
+                                results.append({
+                                    'source': f"Telegram @{channel_name}",
+                                    'title': text_elem.get_text(strip=True)[:150] + '...' if len(text_elem.get_text(strip=True)) > 150 else text_elem.get_text(strip=True),
+                                    'url': msg_url,
+                                    'timestamp': timestamp,
+                                    'channel': channel_name
+                                })
+
+                time.sleep(1)  # Rate limiting
+
+            except Exception as e:
+                logger.error(f"Error scanning Telegram channel {channel.get('name', 'unknown')} for {tracker_name}: {e}")
 
         return results
 
