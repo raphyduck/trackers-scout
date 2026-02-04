@@ -348,7 +348,9 @@ class InviteScanner:
                     'limit': 25
                 }
 
+                logger.debug(f"Reddit: Fetching {url} with query: {params['q']}")
                 response = self.session.get(url, params=params, timeout=15)
+                logger.debug(f"Reddit: Response status {response.status_code} from r/{subreddit}")
 
                 if response.status_code == 200:
                     data = response.json()
@@ -399,7 +401,9 @@ class InviteScanner:
                 query = f"{tracker_name} {keyword} site:reddit.com OR site:forum"
                 url = "https://html.duckduckgo.com/html/"
 
+                logger.debug(f"DuckDuckGo: Searching with query: {query}")
                 response = self.session.post(url, data={'q': query}, timeout=15)
+                logger.debug(f"DuckDuckGo: Response status {response.status_code}")
 
                 if response.status_code == 200:
                     from bs4 import BeautifulSoup
@@ -465,7 +469,9 @@ class InviteScanner:
                 if not url:
                     continue
 
+                logger.debug(f"Custom URL: Fetching {url}")
                 response = self.session.get(url, timeout=15)
+                logger.debug(f"Custom URL: Response status {response.status_code} from {url}")
 
                 if response.status_code == 200:
                     content = response.text.lower()
@@ -558,7 +564,9 @@ class InviteScanner:
                 else:
                     url = base_url
 
+                logger.debug(f"Forum {forum_name}: Fetching {url}")
                 response = self.session.get(url, timeout=20)
+                logger.debug(f"Forum {forum_name}: Response status {response.status_code}")
 
                 if response.status_code == 200:
                     from bs4 import BeautifulSoup
@@ -689,7 +697,9 @@ class InviteScanner:
                     continue
 
                 # Telegram public channel preview URLs
+                logger.debug(f"Telegram: Fetching channel {channel_name} at {channel_url}")
                 response = self.session.get(channel_url, timeout=20)
+                logger.debug(f"Telegram: Response status {response.status_code} from {channel_name}")
 
                 if response.status_code == 200:
                     from bs4 import BeautifulSoup
@@ -825,7 +835,9 @@ class TrackerChecker:
             logger.warning(f"FlareSolverr failed for {self.name}, falling back to direct request")
 
         # Direct request (fallback or default)
+        logger.debug(f"Tracker {self.name}: Fetching {self.url}")
         response = self.session.get(self.url, timeout=15, allow_redirects=True)
+        logger.debug(f"Tracker {self.name}: Response status {response.status_code}")
         response.raise_for_status()
         return response.text
 
