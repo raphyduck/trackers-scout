@@ -14,6 +14,96 @@ flaresolverr:
   # Timeout in milliseconds for FlareSolverr requests
   max_timeout: 60000
 
+# Invite Scanner Configuration
+# Scans the web for invite offers for your monitored trackers
+invite_scanner:
+  enabled: false  # Set to true to enable web scanning for invites
+  scan_interval_minutes: 30  # How often to scan for invites
+
+  sources:
+    # Reddit scanning - searches subreddits for invite offers
+    reddit:
+      enabled: true
+      subreddits:
+        - "invites"           # Main invite trading subreddit
+        - "trackers"          # Private tracker discussions
+        - "OpenSignups"       # Open registration announcements
+        - "Piracy"            # General piracy discussions
+        - "filesharing"       # File sharing community
+      keywords:
+        - "invite"
+        - "invitation"
+        - "giving away"
+        - "giveaway"
+        - "[O]"               # Offering tag
+        - "(O)"               # Offering tag alternative
+      max_age_hours: 24  # Only consider posts from the last 24 hours
+
+    # Popular invite forums - scans giveaway sections
+    invite_forums:
+      enabled: true
+      forums:
+        - name: "InviteHawk"
+          url: "https://www.invitehawk.com/forum/48-free-giveaways/"
+          search_url: "https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=48"
+          type: "invisionpower"
+        - name: "TorrentInvites.org"
+          url: "https://torrentinvites.org/f37/"
+          search_url: "https://torrentinvites.org/search.php?keywords={query}&fid%5B%5D=37"
+          type: "mybb"
+        - name: "InviteScene"
+          url: "https://www.invitescene.com/forum/117-free-invites-giveaways/"
+          search_url: "https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=117"
+          type: "invisionpower"
+        - name: "TorrentInvites.net"
+          url: "https://torrentinvites.net/forums/free-invites-giveaways.6/"
+          search_url: "https://torrentinvites.net/search/?q={query}&t=post&c[node]=6"
+          type: "xenforo"
+        - name: "InviteForum"
+          url: "https://inviteforum.com/forums/free-giveaway.8/"
+          search_url: "https://inviteforum.com/search/?q={query}&t=post&c[node]=8"
+          type: "xenforo"
+        - name: "Opentrackers"
+          url: "https://opentrackers.org/"
+          search_url: null
+          type: "wordpress"
+      keywords:
+        - "invite"
+        - "giveaway"
+        - "giving"
+        - "free"
+
+    # Telegram public channels - scans for invite announcements
+    telegram_channels:
+      enabled: true
+      channels:
+        - name: "r_trackers"
+          url: "https://t.me/s/r_trackers"
+        - name: "OpenSignups"
+          url: "https://t.me/s/opensignups"
+        - name: "TrackerInvites"
+          url: "https://t.me/s/trackerinvites"
+      max_age_hours: 48  # Only consider messages from last 48 hours
+
+    # DuckDuckGo search - broader web search for invites
+    duckduckgo:
+      enabled: true
+      keywords:
+        - "invite"
+        - "invitation"
+        - "giveaway"
+
+    # Custom URLs - scan specific pages/forums for invites
+    custom_urls:
+      enabled: false
+      urls:
+        - "https://opentrackers.org/"
+        # Add more URLs to scan here
+      keywords:
+        - "invite"
+        - "invitation"
+        - "open"
+
 # Notification Configuration
 notifications:
   # Discord webhook

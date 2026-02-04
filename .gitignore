@@ -10,6 +10,8 @@ build/
 
 # Virtual environments
 venv/
+.venv/
+env/
 .env
 
 # IDE
@@ -18,8 +20,10 @@ venv/
 *.swp
 *.swo
 
-# Config with secrets (keep config.yaml as template)
+# Local config and state
 config/state.json
+state.json
+*.log
 
 # OS
 .DS_Store

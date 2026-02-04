@@ -135,7 +135,7 @@ class NotificationManager:
     def _send_webhook(self, tracker_name: str, tracker_url: str, message: str):
         """Send generic webhook notification"""
         webhook_url = self.config['webhook']['url']
-        
+
         payload = {
             "tracker_name": tracker_name,
             "tracker_url": tracker_url,
@@ -143,10 +143,599 @@ class NotificationManager:
             "timestamp": datetime.utcnow().isoformat(),
             "status": "open"
         }
-        
+
         response = requests.post(webhook_url, json=payload, timeout=10)
         response.raise_for_status()
         logger.info(f"Webhook notification sent for {tracker_name}")
+
+    def send_invite_notification(self, tracker_name: str, invites: List[Dict]):
+        """Send notification about found invites"""
+        for method in self.enabled_methods:
+            try:
+                if method == 'discord':
+                    self._send_discord_invite(tracker_name, invites)
+                elif method == 'telegram':
+                    self._send_telegram_invite(tracker_name, invites)
+                elif method == 'email':
+                    self._send_email_invite(tracker_name, invites)
+                elif method == 'webhook':
+                    self._send_webhook_invite(tracker_name, invites)
+            except Exception as e:
+                logger.error(f"Failed to send {method} invite notification: {e}")
+
+    def _send_discord_invite(self, tracker_name: str, invites: List[Dict]):
+        """Send Discord notification for found invites"""
+        webhook_url = self.config['discord']['webhook_url']
+
+        # Build fields for each invite
+        fields = []
+        for invite in invites[:5]:  # Limit to 5 invites per notification
+            fields.append({
+                "name": invite.get('source', 'Unknown'),
+                "value": f"[{invite.get('title', 'Link')[:100]}]({invite.get('url', '')})",
+                "inline": False
+            })
+
+        embed = {
+            "embeds": [{
+                "title": f"🎟️ {tracker_name} - Invites Found!",
+                "description": f"Found {len(invites)} potential invite offer(s) for {tracker_name}",
+                "color": 15844367,  # Gold
+                "fields": fields,
+                "timestamp": datetime.utcnow().isoformat(),
+                "footer": {
+                    "text": "Tracker Monitor - Invite Scanner"
+                }
+            }]
+        }
+
+        response = requests.post(webhook_url, json=embed, timeout=10)
+        response.raise_for_status()
+        logger.info(f"Discord invite notification sent for {tracker_name}")
+
+    def _send_telegram_invite(self, tracker_name: str, invites: List[Dict]):
+        """Send Telegram notification for found invites"""
+        bot_token = self.config['telegram']['bot_token']
+        chat_id = self.config['telegram']['chat_id']
+
+        invite_links = "\n".join([
+            f"• [{invite.get('source', 'Unknown')}]({invite.get('url', '')})"
+            for invite in invites[:5]
+        ])
+
+        text = f"🎟️ *{tracker_name} - Invites Found!*\n\nFound {len(invites)} potential invite offer(s):\n\n{invite_links}"
+
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": True
+        }
+
+        response = requests.post(url, json=payload, timeout=10)
+        response.raise_for_status()
+        logger.info(f"Telegram invite notification sent for {tracker_name}")
+
+    def _send_email_invite(self, tracker_name: str, invites: List[Dict]):
+        """Send email notification for found invites"""
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        smtp_config = self.config['email']
+
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f"🎟️ {tracker_name} - Invites Found!"
+        msg['From'] = smtp_config['from_address']
+        msg['To'] = smtp_config['to_address']
+
+        invite_items = "".join([
+            f"<li><a href=\"{invite.get('url', '')}\">{invite.get('source', 'Unknown')}: {invite.get('title', 'Link')[:100]}</a></li>"
+            for invite in invites[:10]
+        ])
+
+        html = f"""
+        <html>
+          <body>
+            <h2>🎟️ {tracker_name} - Invites Found!</h2>
+            <p>Found {len(invites)} potential invite offer(s):</p>
+            <ul>{invite_items}</ul>
+            <hr>
+            <p><small>Tracker Monitor - Invite Scanner - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small></p>
+          </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(html, 'html'))
+
+        with smtplib.SMTP(smtp_config['smtp_server'], smtp_config['smtp_port']) as server:
+            if smtp_config.get('use_tls', True):
+                server.starttls()
+            if smtp_config.get('username') and smtp_config.get('password'):
+                server.login(smtp_config['username'], smtp_config['password'])
+            server.send_message(msg)
+
+        logger.info(f"Email invite notification sent for {tracker_name}")
+
+    def _send_webhook_invite(self, tracker_name: str, invites: List[Dict]):
+        """Send webhook notification for found invites"""
+        webhook_url = self.config['webhook']['url']
+
+        payload = {
+            "tracker_name": tracker_name,
+            "invites": invites,
+            "count": len(invites),
+            "timestamp": datetime.utcnow().isoformat(),
+            "type": "invite_found"
+        }
+
+        response = requests.post(webhook_url, json=payload, timeout=10)
+        response.raise_for_status()
+        logger.info(f"Webhook invite notification sent for {tracker_name}")
+
+
+class InviteScanner:
+    """Scans the web for tracker invites"""
+
+    def __init__(self, config: Dict):
+        self.config = config.get('invite_scanner', {})
+        self.enabled = self.config.get('enabled', False)
+        self.sources = self.config.get('sources', {})
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        })
+        self.found_invites = {}
+
+    def scan_for_invites(self, tracker_names: List[str]) -> Dict[str, List[Dict]]:
+        """Scan all enabled sources for invites for the given trackers"""
+        if not self.enabled:
+            logger.debug("Invite scanner is disabled")
+            return {}
+
+        results = {}
+
+        for tracker_name in tracker_names:
+            tracker_results = []
+
+            # Scan Reddit
+            if self.sources.get('reddit', {}).get('enabled', False):
+                reddit_results = self._scan_reddit(tracker_name)
+                tracker_results.extend(reddit_results)
+
+            # Scan DuckDuckGo
+            if self.sources.get('duckduckgo', {}).get('enabled', False):
+                ddg_results = self._scan_duckduckgo(tracker_name)
+                tracker_results.extend(ddg_results)
+
+            # Scan invite forums
+            if self.sources.get('invite_forums', {}).get('enabled', False):
+                forum_results = self._scan_invite_forums(tracker_name)
+                tracker_results.extend(forum_results)
+
+            # Scan Telegram channels
+            if self.sources.get('telegram_channels', {}).get('enabled', False):
+                telegram_results = self._scan_telegram_channels(tracker_name)
+                tracker_results.extend(telegram_results)
+
+            # Scan custom URLs
+            if self.sources.get('custom_urls', {}).get('enabled', False):
+                custom_results = self._scan_custom_urls(tracker_name)
+                tracker_results.extend(custom_results)
+
+            if tracker_results:
+                results[tracker_name] = tracker_results
+
+        return results
+
+    def _scan_reddit(self, tracker_name: str) -> List[Dict]:
+        """Scan Reddit for invite offers"""
+        results = []
+        subreddits = self.sources.get('reddit', {}).get('subreddits', ['invites', 'trackers', 'OpenSignups'])
+        keywords = self.sources.get('reddit', {}).get('keywords', ['invite', 'invitation', 'giving away'])
+        max_age_hours = self.sources.get('reddit', {}).get('max_age_hours', 24)
+
+        for subreddit in subreddits:
+            try:
+                url = f"https://www.reddit.com/r/{subreddit}/search.json"
+                params = {
+                    'q': f"{tracker_name} ({' OR '.join(keywords)})",
+                    'restrict_sr': 'true',
+                    'sort': 'new',
+                    't': 'day',
+                    'limit': 25
+                }
+
+                response = self.session.get(url, params=params, timeout=15)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    posts = data.get('data', {}).get('children', [])
+
+                    cutoff_time = time.time() - (max_age_hours * 3600)
+
+                    for post in posts:
+                        post_data = post.get('data', {})
+                        created_utc = post_data.get('created_utc', 0)
+
+                        if created_utc < cutoff_time:
+                            continue
+
+                        title = post_data.get('title', '').lower()
+                        selftext = post_data.get('selftext', '').lower()
+                        content = title + ' ' + selftext
+
+                        # Check if this is about offering invites (not requesting)
+                        if tracker_name.lower() in content:
+                            is_offering = any(kw in content for kw in ['giving', 'offer', 'have', '[o]', '(o)', 'giveaway'])
+                            is_requesting = any(kw in content for kw in ['want', 'need', 'looking for', '[w]', '(w)', 'request'])
+
+                            if is_offering and not is_requesting:
+                                results.append({
+                                    'source': f"Reddit r/{subreddit}",
+                                    'title': post_data.get('title', ''),
+                                    'url': f"https://reddit.com{post_data.get('permalink', '')}",
+                                    'author': post_data.get('author', 'unknown'),
+                                    'created': datetime.fromtimestamp(created_utc).isoformat(),
+                                    'score': post_data.get('score', 0)
+                                })
+
+                time.sleep(1)  # Rate limiting for Reddit API
+
+            except Exception as e:
+                logger.error(f"Error scanning Reddit r/{subreddit} for {tracker_name}: {e}")
+
+        return results
+
+    def _scan_duckduckgo(self, tracker_name: str) -> List[Dict]:
+        """Scan DuckDuckGo for invite offers"""
+        results = []
+        keywords = self.sources.get('duckduckgo', {}).get('keywords', ['invite', 'invitation', 'giveaway'])
+
+        for keyword in keywords:
+            try:
+                query = f"{tracker_name} {keyword} site:reddit.com OR site:forum"
+                url = "https://html.duckduckgo.com/html/"
+
+                response = self.session.post(url, data={'q': query}, timeout=15)
+
+                if response.status_code == 200:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(response.text, 'html.parser')
+
+                    for result in soup.select('.result__body')[:10]:
+                        title_elem = result.select_one('.result__title')
+                        snippet_elem = result.select_one('.result__snippet')
+                        link_elem = result.select_one('.result__url')
+
+                        if title_elem and link_elem:
+                            result_url = link_elem.get('href', '')
+                            if not result_url.startswith('http'):
+                                # Extract actual URL from DuckDuckGo redirect
+                                link_a = result.select_one('.result__a')
+                                if link_a:
+                                    result_url = link_a.get('href', '')
+
+                            results.append({
+                                'source': 'DuckDuckGo',
+                                'title': title_elem.get_text(strip=True),
+                                'url': result_url,
+                                'snippet': snippet_elem.get_text(strip=True) if snippet_elem else '',
+                                'query': query
+                            })
+
+                time.sleep(2)  # Rate limiting
+
+            except Exception as e:
+                logger.error(f"Error scanning DuckDuckGo for {tracker_name}: {e}")
+
+        # Deduplicate results by URL
+        seen_urls = set()
+        unique_results = []
+        for r in results:
+            if r['url'] not in seen_urls:
+                seen_urls.add(r['url'])
+                unique_results.append(r)
+
+        return unique_results
+
+    def _scan_custom_urls(self, tracker_name: str) -> List[Dict]:
+        """Scan custom URLs for invite mentions"""
+        results = []
+        urls = self.sources.get('custom_urls', {}).get('urls', [])
+        keywords = self.sources.get('custom_urls', {}).get('keywords', ['invite', 'invitation'])
+
+        for url_config in urls:
+            try:
+                url = url_config if isinstance(url_config, str) else url_config.get('url', '')
+                if not url:
+                    continue
+
+                response = self.session.get(url, timeout=15)
+
+                if response.status_code == 200:
+                    content = response.text.lower()
+                    tracker_lower = tracker_name.lower()
+
+                    if tracker_lower in content:
+                        # Check if any invite keyword is near the tracker name
+                        for keyword in keywords:
+                            if keyword.lower() in content:
+                                # Find context around the match
+                                idx = content.find(tracker_lower)
+                                start = max(0, idx - 100)
+                                end = min(len(content), idx + len(tracker_lower) + 100)
+                                context = response.text[start:end]
+
+                                results.append({
+                                    'source': 'Custom URL',
+                                    'title': f"Mention found on {urlparse(url).netloc}",
+                                    'url': url,
+                                    'snippet': f"...{context}...",
+                                    'keyword': keyword
+                                })
+                                break
+
+                time.sleep(1)  # Rate limiting
+
+            except Exception as e:
+                logger.error(f"Error scanning custom URL {url} for {tracker_name}: {e}")
+
+        return results
+
+    def _scan_invite_forums(self, tracker_name: str) -> List[Dict]:
+        """Scan popular invite forums for giveaways"""
+        results = []
+        forums_config = self.sources.get('invite_forums', {})
+
+        # Default forum configurations
+        default_forums = [
+            {
+                'name': 'InviteHawk',
+                'url': 'https://www.invitehawk.com/forum/48-free-giveaways/',
+                'search_url': 'https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=48',
+                'type': 'invisionpower'
+            },
+            {
+                'name': 'TorrentInvites.org',
+                'url': 'https://torrentinvites.org/f37/',
+                'search_url': 'https://torrentinvites.org/search.php?keywords={query}&fid%5B%5D=37',
+                'type': 'mybb'
+            },
+            {
+                'name': 'InviteScene',
+                'url': 'https://www.invitescene.com/forum/117-free-invites-giveaways/',
+                'search_url': 'https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=117',
+                'type': 'invisionpower'
+            },
+            {
+                'name': 'TorrentInvites.net',
+                'url': 'https://torrentinvites.net/forums/free-invites-giveaways.6/',
+                'search_url': 'https://torrentinvites.net/search/?q={query}&t=post&c[node]=6',
+                'type': 'xenforo'
+            },
+            {
+                'name': 'InviteForum',
+                'url': 'https://inviteforum.com/forums/free-giveaway.8/',
+                'search_url': 'https://inviteforum.com/search/?q={query}&t=post&c[node]=8',
+                'type': 'xenforo'
+            },
+            {
+                'name': 'Opentrackers',
+                'url': 'https://opentrackers.org/',
+                'search_url': None,  # No search, scan main page
+                'type': 'wordpress'
+            }
+        ]
+
+        forums = forums_config.get('forums', default_forums)
+        keywords = forums_config.get('keywords', ['invite', 'giveaway', 'giving', 'free'])
+
+        for forum in forums:
+            try:
+                forum_name = forum.get('name', 'Unknown Forum')
+                forum_type = forum.get('type', 'generic')
+                search_url = forum.get('search_url')
+                base_url = forum.get('url')
+
+                # Use search if available, otherwise scan main page
+                if search_url:
+                    url = search_url.format(query=tracker_name)
+                else:
+                    url = base_url
+
+                response = self.session.get(url, timeout=20)
+
+                if response.status_code == 200:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    tracker_lower = tracker_name.lower()
+
+                    # Parse based on forum type
+                    if forum_type == 'xenforo':
+                        threads = soup.select('.structItem--thread, .discussionListItem')
+                        for thread in threads[:15]:
+                            title_elem = thread.select_one('.structItem-title a, .title a')
+                            if title_elem:
+                                title = title_elem.get_text(strip=True).lower()
+                                if tracker_lower in title and any(kw in title for kw in keywords):
+                                    href = title_elem.get('href', '')
+                                    if not href.startswith('http'):
+                                        href = f"https://{urlparse(url).netloc}{href}"
+                                    results.append({
+                                        'source': forum_name,
+                                        'title': title_elem.get_text(strip=True),
+                                        'url': href,
+                                        'forum_type': forum_type
+                                    })
+
+                    elif forum_type == 'invisionpower':
+                        threads = soup.select('.ipsDataItem, .cTopicList .ipsDataItem')
+                        for thread in threads[:15]:
+                            title_elem = thread.select_one('.ipsDataItem_title a, .title a')
+                            if title_elem:
+                                title = title_elem.get_text(strip=True).lower()
+                                if tracker_lower in title and any(kw in title for kw in keywords):
+                                    href = title_elem.get('href', '')
+                                    results.append({
+                                        'source': forum_name,
+                                        'title': title_elem.get_text(strip=True),
+                                        'url': href,
+                                        'forum_type': forum_type
+                                    })
+
+                    elif forum_type == 'mybb':
+                        threads = soup.select('.tborder tr, .thread_list tr')
+                        for thread in threads[:15]:
+                            title_elem = thread.select_one('a[href*="thread"]')
+                            if title_elem:
+                                title = title_elem.get_text(strip=True).lower()
+                                if tracker_lower in title and any(kw in title for kw in keywords):
+                                    href = title_elem.get('href', '')
+                                    if not href.startswith('http'):
+                                        href = f"https://{urlparse(url).netloc}/{href}"
+                                    results.append({
+                                        'source': forum_name,
+                                        'title': title_elem.get_text(strip=True),
+                                        'url': href,
+                                        'forum_type': forum_type
+                                    })
+
+                    elif forum_type == 'wordpress':
+                        # For Opentrackers - scan articles
+                        articles = soup.select('article, .post, .entry')
+                        for article in articles[:10]:
+                            title_elem = article.select_one('h2 a, h3 a, .entry-title a')
+                            content_elem = article.select_one('.entry-content, .post-content, p')
+                            if title_elem:
+                                title = title_elem.get_text(strip=True).lower()
+                                content = content_elem.get_text(strip=True).lower() if content_elem else ''
+                                full_text = title + ' ' + content
+                                if tracker_lower in full_text:
+                                    href = title_elem.get('href', '')
+                                    results.append({
+                                        'source': forum_name,
+                                        'title': title_elem.get_text(strip=True),
+                                        'url': href,
+                                        'forum_type': forum_type
+                                    })
+
+                    else:
+                        # Generic fallback - look for links containing tracker name
+                        links = soup.find_all('a', href=True)
+                        for link in links[:50]:
+                            text = link.get_text(strip=True).lower()
+                            if tracker_lower in text and any(kw in text for kw in keywords):
+                                href = link.get('href', '')
+                                if not href.startswith('http'):
+                                    href = f"https://{urlparse(url).netloc}{href}"
+                                results.append({
+                                    'source': forum_name,
+                                    'title': link.get_text(strip=True),
+                                    'url': href,
+                                    'forum_type': 'generic'
+                                })
+
+                time.sleep(2)  # Rate limiting between forums
+
+            except Exception as e:
+                logger.error(f"Error scanning forum {forum.get('name', 'unknown')} for {tracker_name}: {e}")
+
+        # Deduplicate
+        seen_urls = set()
+        unique_results = []
+        for r in results:
+            if r['url'] not in seen_urls:
+                seen_urls.add(r['url'])
+                unique_results.append(r)
+
+        return unique_results
+
+    def _scan_telegram_channels(self, tracker_name: str) -> List[Dict]:
+        """Scan public Telegram channels for invite offers"""
+        results = []
+        channels_config = self.sources.get('telegram_channels', {})
+
+        # Default channels (public web previews)
+        default_channels = [
+            {'name': 'r/trackers', 'url': 'https://t.me/s/r_trackers'},
+            {'name': 'OpenSignups', 'url': 'https://t.me/s/opensignups'},
+            {'name': 'TrackerInvites', 'url': 'https://t.me/s/trackerinvites'},
+        ]
+
+        channels = channels_config.get('channels', default_channels)
+        max_age_hours = channels_config.get('max_age_hours', 48)
+
+        for channel in channels:
+            try:
+                channel_name = channel.get('name', 'Unknown')
+                channel_url = channel.get('url')
+
+                if not channel_url:
+                    continue
+
+                # Telegram public channel preview URLs
+                response = self.session.get(channel_url, timeout=20)
+
+                if response.status_code == 200:
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    tracker_lower = tracker_name.lower()
+
+                    # Telegram web preview message structure
+                    messages = soup.select('.tgme_widget_message')
+
+                    for message in messages[:30]:
+                        text_elem = message.select_one('.tgme_widget_message_text')
+                        if not text_elem:
+                            continue
+
+                        text = text_elem.get_text(strip=True).lower()
+
+                        if tracker_lower in text:
+                            # Check if it's about offering invites
+                            is_offering = any(kw in text for kw in [
+                                'invite', 'giveaway', 'giving', 'free', 'open signup',
+                                'registration open', 'signups open', 'limited signup'
+                            ])
+
+                            if is_offering:
+                                # Get message link
+                                link_elem = message.select_one('.tgme_widget_message_date')
+                                msg_url = link_elem.get('href', channel_url) if link_elem else channel_url
+
+                                # Get timestamp if available
+                                time_elem = message.select_one('time')
+                                timestamp = time_elem.get('datetime', '') if time_elem else ''
+
+                                results.append({
+                                    'source': f"Telegram @{channel_name}",
+                                    'title': text_elem.get_text(strip=True)[:150] + '...' if len(text_elem.get_text(strip=True)) > 150 else text_elem.get_text(strip=True),
+                                    'url': msg_url,
+                                    'timestamp': timestamp,
+                                    'channel': channel_name
+                                })
+
+                time.sleep(1)  # Rate limiting
+
+            except Exception as e:
+                logger.error(f"Error scanning Telegram channel {channel.get('name', 'unknown')} for {tracker_name}: {e}")
+
+        return results
+
+    def get_new_invites(self, current_results: Dict[str, List[Dict]], previous_state: Dict) -> Dict[str, List[Dict]]:
+        """Filter results to only return new invites not seen before"""
+        new_invites = {}
+
+        for tracker_name, results in current_results.items():
+            previous_urls = set(previous_state.get('invites', {}).get(tracker_name, {}).get('seen_urls', []))
+            new_results = [r for r in results if r['url'] not in previous_urls]
+
+            if new_results:
+                new_invites[tracker_name] = new_results
+
+        return new_invites
 
 
 class FlareSolverrClient:
@@ -306,6 +895,7 @@ class TrackerMonitor:
         if self.flaresolverr.enabled:
             logger.info(f"FlareSolverr enabled at {self.flaresolverr.url}")
         self.trackers = self._load_trackers()
+        self.invite_scanner = InviteScanner(self.config)
         self.state_file = '/config/state.json'
         self.state = self._load_state()
     
@@ -397,17 +987,77 @@ class TrackerMonitor:
                 logger.error(f"Error checking {tracker.name}: {e}")
         
         self._save_state()
-    
+
+    def scan_for_invites(self):
+        """Scan the web for invite offers for monitored trackers"""
+        if not self.invite_scanner.enabled:
+            return
+
+        tracker_names = [t.name for t in self.trackers]
+        logger.info(f"Scanning for invites for {len(tracker_names)} trackers...")
+
+        # Scan for invites
+        all_results = self.invite_scanner.scan_for_invites(tracker_names)
+
+        if not all_results:
+            logger.info("No invites found in this scan")
+            return
+
+        # Filter to only new invites
+        new_invites = self.invite_scanner.get_new_invites(all_results, self.state)
+
+        if not new_invites:
+            logger.info("No new invites found (all already seen)")
+            return
+
+        # Send notifications for new invites
+        for tracker_name, invites in new_invites.items():
+            logger.info(f"🎟️ Found {len(invites)} new invite(s) for {tracker_name}")
+            self.notification_manager.send_invite_notification(tracker_name, invites)
+
+        # Update state with seen URLs
+        if 'invites' not in self.state:
+            self.state['invites'] = {}
+
+        for tracker_name, results in all_results.items():
+            if tracker_name not in self.state['invites']:
+                self.state['invites'][tracker_name] = {'seen_urls': []}
+
+            existing_urls = set(self.state['invites'][tracker_name].get('seen_urls', []))
+            new_urls = [r['url'] for r in results]
+            all_urls = list(existing_urls | set(new_urls))
+
+            # Keep only the last 500 URLs to prevent state file from growing too large
+            self.state['invites'][tracker_name] = {
+                'seen_urls': all_urls[-500:],
+                'last_scan': datetime.now().isoformat()
+            }
+
+        self._save_state()
+
     def run(self):
         """Main monitoring loop"""
         check_interval = self.config.get('check_interval_minutes', 10) * 60
-        
+        invite_scan_interval = self.config.get('invite_scanner', {}).get('scan_interval_minutes', 30) * 60
+        last_invite_scan = 0
+
         logger.info(f"Starting tracker monitor (check interval: {check_interval/60} minutes)")
         logger.info(f"Monitoring {len(self.trackers)} trackers")
-        
+
+        if self.invite_scanner.enabled:
+            logger.info(f"Invite scanner enabled (scan interval: {invite_scan_interval/60} minutes)")
+
         while True:
             try:
                 self.check_all_trackers()
+
+                # Run invite scan if enabled and interval has passed
+                if self.invite_scanner.enabled:
+                    current_time = time.time()
+                    if current_time - last_invite_scan >= invite_scan_interval:
+                        self.scan_for_invites()
+                        last_invite_scan = current_time
+
                 logger.info(f"Next check in {check_interval/60} minutes")
                 time.sleep(check_interval)
             except KeyboardInterrupt:
