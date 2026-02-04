@@ -43,21 +43,20 @@ invite_scanner:
     invite_forums:
       enabled: true
       forums:
-        # InviteHawk - Disabled: Search returns 404 (requires login or endpoint changed)
-        # - name: "InviteHawk"
-        #   url: "https://www.invitehawk.com/forum/48-free-giveaways/"
-        #   search_url: "https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=48"
-        #   type: "invisionpower"
-        # TorrentInvites.org - Disabled: Domain DNS resolution fails (site is dead)
+        - name: "InviteHawk"
+          url: "https://www.invitehawk.com/forum/22-torrent-invite-giveaways/"
+          search_url: "https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=22"
+          type: "invisionpower"
+        # TorrentInvites.org - Disabled: Cloudflare protection returns 403 (needs FlareSolverr)
         # - name: "TorrentInvites.org"
         #   url: "https://torrentinvites.org/f37/"
         #   search_url: "https://torrentinvites.org/search.php?keywords={query}&fid%5B%5D=37"
         #   type: "mybb"
-        # InviteScene - Disabled: Search returns 404 (requires login or endpoint changed)
-        # - name: "InviteScene"
-        #   url: "https://www.invitescene.com/forum/117-free-invites-giveaways/"
-        #   search_url: "https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=117"
-        #   type: "invisionpower"
+        #   use_flaresolverr: true
+        - name: "InviteScene"
+          url: "https://www.invitescene.com/forum/16-giveaways/"
+          search_url: "https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=16"
+          type: "invisionpower"
         - name: "TorrentInvites.net"
           url: "https://torrentinvites.net/forums/free-invites-giveaways.6/"
           search_url: "https://torrentinvites.net/search/?q={query}&t=post&c[node]=6"

@@ -515,9 +515,20 @@ class InviteScanner:
         forums_config = self.sources.get('invite_forums', {})
 
         # Default forum configurations
-        # Note: InviteHawk, TorrentInvites.org, and InviteScene removed - they return
-        # 404 errors (require login or endpoints changed) or DNS failures (dead domains)
+        # Note: TorrentInvites.org removed - requires FlareSolverr due to Cloudflare
         default_forums = [
+            {
+                'name': 'InviteHawk',
+                'url': 'https://www.invitehawk.com/forum/22-torrent-invite-giveaways/',
+                'search_url': 'https://www.invitehawk.com/search/?q={query}&type=forums_topic&nodes=22',
+                'type': 'invisionpower'
+            },
+            {
+                'name': 'InviteScene',
+                'url': 'https://www.invitescene.com/forum/16-giveaways/',
+                'search_url': 'https://www.invitescene.com/search/?q={query}&type=forums_topic&nodes=16',
+                'type': 'invisionpower'
+            },
             {
                 'name': 'TorrentInvites.net',
                 'url': 'https://torrentinvites.net/forums/free-invites-giveaways.6/',
