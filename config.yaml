@@ -162,6 +162,23 @@ trackers:
     not_match_text:
       - "closed"
   
+  # TheOldSchool - Music tracker (oldies/classic)
+  - name: "TheOldSchool"
+    enabled: true
+    url: "https://theoldschool.cc/"
+    signup_url: "https://theoldschool.cc/register.php"
+    method: "text_match"
+    match_text:
+      - "registration"
+      - "sign up"
+      - "create account"
+      - "register now"
+    not_match_text:
+      - "closed"
+      - "invite only"
+      - "registration disabled"
+      - "signup disabled"
+
   # Add your custom tracker here
   - name: "CustomTracker"
     enabled: false  # Set to true to enable
