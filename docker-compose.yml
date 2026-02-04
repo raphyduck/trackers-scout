@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  tracker-monitor:
+    build: .
+    container_name: tracker-monitor
+    restart: unless-stopped
+    volumes:
+      - ./config:/config
+    environment:
+      - TZ=UTC
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Uncomment below if you need to set network mode
+    # network_mode: bridge
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M

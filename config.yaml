@@ -1,0 +1,184 @@
+# Tracker Monitor Configuration
+# Configure your notification methods and trackers to monitor
+
+# Check interval in minutes (how often to check all trackers)
+check_interval_minutes: 10
+
+# Delay between individual tracker checks in seconds (to avoid rate limiting)
+check_delay_seconds: 2
+
+# Notification Configuration
+notifications:
+  # Discord webhook
+  discord:
+    enabled: false
+    webhook_url: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+  
+  # Telegram bot
+  telegram:
+    enabled: false
+    bot_token: "YOUR_BOT_TOKEN"
+    chat_id: "YOUR_CHAT_ID"
+  
+  # Email via SMTP
+  email:
+    enabled: false
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    use_tls: true
+    username: "your-email@gmail.com"
+    password: "your-app-password"
+    from_address: "your-email@gmail.com"
+    to_address: "your-email@gmail.com"
+  
+  # Generic webhook
+  webhook:
+    enabled: false
+    url: "https://your-webhook-endpoint.com/notify"
+
+# Trackers to monitor
+trackers:
+  # Example: TorrentLeech
+  - name: "TorrentLeech"
+    enabled: false
+    url: "https://www.torrentleech.org/"
+    signup_url: "https://www.torrentleech.org/user/account/signup"
+    method: "text_match"
+    match_text:
+      - "signup is open"
+      - "registration is open"
+      - "open for registration"
+    not_match_text:
+      - "invites only"
+      - "registration is closed"
+      - "signup closed"
+  
+  # Example: IPTorrents
+  - name: "IPTorrents"
+    enabled: false
+    url: "https://iptorrents.com/"
+    signup_url: "https://iptorrents.com/signup.php"
+    method: "text_match"
+    match_text:
+      - "create an account"
+      - "sign up"
+    not_match_text:
+      - "registration closed"
+      - "invite only"
+  
+  # Example: FileList (Romanian tracker)
+  - name: "FileList"
+    enabled: false
+    url: "https://filelist.io/"
+    signup_url: "https://filelist.io/signup.php"
+    method: "text_match"
+    match_text:
+      - "inscriere"  # Romanian for registration
+      - "inregistrare"
+    not_match_text:
+      - "inchisa"  # closed
+      - "invitatie"  # invitation
+  
+  # Example: Nebulance
+  - name: "Nebulance"
+    enabled: false
+    url: "https://nebulance.io/"
+    signup_url: "https://nebulance.io/register.php"
+    method: "text_match"
+    match_text:
+      - "register"
+      - "sign up"
+    not_match_text:
+      - "closed"
+      - "invite"
+  
+  # Example: AlphaRatio
+  - name: "AlphaRatio"
+    enabled: false
+    url: "https://alpharatio.cc/"
+    signup_url: "https://alpharatio.cc/register.php"
+    method: "text_match"
+    match_text:
+      - "registration"
+      - "create account"
+    not_match_text:
+      - "disabled"
+      - "invite only"
+  
+  # Example: Anime Bytes (using CSS selector method)
+  - name: "AnimeBytes"
+    enabled: false
+    url: "https://animebytes.tv/"
+    signup_url: "https://animebytes.tv/register.php"
+    method: "css_selector"
+    css_selector: "form#register"  # Look for registration form
+  
+  # Example: BroadcastTheNet
+  - name: "BroadcastTheNet"
+    enabled: false
+    url: "https://broadcasthe.net/"
+    signup_url: "https://broadcasthe.net/signup.php"
+    method: "text_match"
+    match_text:
+      - "signup form"
+      - "create account"
+    not_match_text:
+      - "disabled"
+      - "invite required"
+  
+  # Example: PassThePopcorn
+  - name: "PassThePopcorn"
+    enabled: false
+    url: "https://passthepopcorn.me/"
+    signup_url: "https://passthepopcorn.me/register.php"
+    method: "text_match"
+    match_text:
+      - "registration"
+    not_match_text:
+      - "closed"
+      - "invite"
+  
+  # Example: RED (Redacted)
+  - name: "RED"
+    enabled: false
+    url: "https://redacted.ch/"
+    signup_url: "https://interviewfor.red/en/index.html"
+    method: "text_match"
+    match_text:
+      - "interview"
+      - "apply"
+    not_match_text:
+      - "currently unavailable"
+  
+  # Example: Orpheus (Music)
+  - name: "Orpheus"
+    enabled: false
+    url: "https://orpheus.network/"
+    signup_url: "https://orpheus.network/register.php"
+    method: "text_match"
+    match_text:
+      - "registration"
+      - "sign up"
+    not_match_text:
+      - "closed"
+  
+  # Add your custom tracker here
+  - name: "CustomTracker"
+    enabled: false  # Set to true to enable
+    url: "https://example-tracker.com/"  # Main tracker URL to check
+    signup_url: "https://example-tracker.com/register"  # Direct link to signup page
+    method: "text_match"  # Options: text_match, css_selector, xpath
+    match_text:
+      - "registration open"
+      - "sign up now"
+    not_match_text:
+      - "registration closed"
+      - "invite only"
+
+# Notes:
+# 1. Set 'enabled: true' for trackers you want to monitor
+# 2. Text matching is case-insensitive
+# 3. If multiple match_text items are provided, ANY match will trigger
+# 4. If any not_match_text is found, signup is considered closed
+# 5. For css_selector method, install beautifulsoup4: pip install beautifulsoup4
+# 6. For xpath method, install lxml: pip install lxml
