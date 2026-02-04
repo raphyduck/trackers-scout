@@ -14,9 +14,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # Uncomment below if you need to set network mode
-    # network_mode: bridge
-    
+    # Uncomment below to enable FlareSolverr dependency
+    # depends_on:
+    #   - flaresolverr
+
     # Resource limits (optional)
     deploy:
       resources:
@@ -26,3 +27,21 @@ services:
         reservations:
           cpus: '0.1'
           memory: 64M
+
+  # FlareSolverr - Proxy to bypass Cloudflare protection
+  # Uncomment to enable
+  # flaresolverr:
+  #   image: ghcr.io/flaresolverr/flaresolverr:latest
+  #   container_name: flaresolverr
+  #   restart: unless-stopped
+  #   environment:
+  #     - LOG_LEVEL=info
+  #     - LOG_HTML=false
+  #     - TZ=UTC
+  #   ports:
+  #     - "8191:8191"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '1.0'
+  #         memory: 512M
