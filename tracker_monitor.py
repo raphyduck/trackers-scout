@@ -149,10 +149,45 @@ class NotificationManager:
         logger.info(f"Webhook notification sent for {tracker_name}")
 
 
+class FlareSolverrClient:
+    """Client for FlareSolverr proxy to bypass Cloudflare protection"""
+
+    def __init__(self, config: Dict):
+        self.enabled = config.get('enabled', False)
+        self.url = config.get('url', 'http://flaresolverr:8191/v1')
+        self.max_timeout = config.get('max_timeout', 60000)
+
+    def get(self, url: str, timeout: int = 15) -> Optional[str]:
+        """Fetch URL through FlareSolverr, returns HTML content or None on error"""
+        if not self.enabled:
+            return None
+
+        payload = {
+            "cmd": "request.get",
+            "url": url,
+            "maxTimeout": self.max_timeout
+        }
+
+        try:
+            response = requests.post(self.url, json=payload, timeout=timeout + 60)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('status') == 'ok':
+                solution = data.get('solution', {})
+                return solution.get('response', '')
+            else:
+                logger.error(f"FlareSolverr error: {data.get('message', 'Unknown error')}")
+                return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"FlareSolverr request failed: {e}")
+            return None
+
+
 class TrackerChecker:
     """Checks tracker websites for open signups"""
-    
-    def __init__(self, tracker_config: Dict):
+
+    def __init__(self, tracker_config: Dict, flaresolverr_client: Optional[FlareSolverrClient] = None):
         self.name = tracker_config['name']
         self.url = tracker_config['url']
         self.signup_url = tracker_config.get('signup_url', self.url)
@@ -161,31 +196,56 @@ class TrackerChecker:
         self.not_match_text = tracker_config.get('not_match_text', [])
         self.xpath = tracker_config.get('xpath')
         self.css_selector = tracker_config.get('css_selector')
+        self.use_flaresolverr = tracker_config.get('use_flaresolverr')  # None = use global setting
         self.is_open = False
         self.last_check = None
+        self.flaresolverr = flaresolverr_client
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         })
     
+    def _should_use_flaresolverr(self) -> bool:
+        """Determine if FlareSolverr should be used for this tracker"""
+        # Per-tracker setting takes precedence
+        if self.use_flaresolverr is not None:
+            return self.use_flaresolverr
+        # Fall back to global setting
+        return self.flaresolverr is not None and self.flaresolverr.enabled
+
+    def _fetch_content(self) -> Optional[str]:
+        """Fetch page content, using FlareSolverr if configured"""
+        if self._should_use_flaresolverr():
+            logger.debug(f"Using FlareSolverr for {self.name}")
+            content = self.flaresolverr.get(self.url)
+            if content is not None:
+                return content
+            logger.warning(f"FlareSolverr failed for {self.name}, falling back to direct request")
+
+        # Direct request (fallback or default)
+        response = self.session.get(self.url, timeout=15, allow_redirects=True)
+        response.raise_for_status()
+        return response.text
+
     def check_status(self) -> bool:
         """Check if tracker signup is open"""
         try:
-            response = self.session.get(self.url, timeout=15, allow_redirects=True)
-            response.raise_for_status()
-            
+            html_content = self._fetch_content()
+            if html_content is None:
+                return False
+
             self.last_check = datetime.now()
-            
+
             if self.check_method == 'text_match':
-                return self._check_text_match(response.text)
+                return self._check_text_match(html_content)
             elif self.check_method == 'xpath':
-                return self._check_xpath(response.text)
+                return self._check_xpath(html_content)
             elif self.check_method == 'css_selector':
-                return self._check_css_selector(response.text)
+                return self._check_css_selector(html_content)
             else:
                 logger.warning(f"Unknown check method for {self.name}: {self.check_method}")
                 return False
-                
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to check {self.name}: {e}")
             return False
@@ -237,11 +297,14 @@ class TrackerChecker:
 
 class TrackerMonitor:
     """Main monitor application"""
-    
+
     def __init__(self, config_path: str = '/config/config.yaml'):
         self.config_path = config_path
         self.config = self._load_config()
         self.notification_manager = NotificationManager(self.config.get('notifications', {}))
+        self.flaresolverr = FlareSolverrClient(self.config.get('flaresolverr', {}))
+        if self.flaresolverr.enabled:
+            logger.info(f"FlareSolverr enabled at {self.flaresolverr.url}")
         self.trackers = self._load_trackers()
         self.state_file = '/config/state.json'
         self.state = self._load_state()
@@ -265,8 +328,8 @@ class TrackerMonitor:
         trackers = []
         for tracker_config in self.config.get('trackers', []):
             if tracker_config.get('enabled', True):
-                trackers.append(TrackerChecker(tracker_config))
-        
+                trackers.append(TrackerChecker(tracker_config, self.flaresolverr))
+
         logger.info(f"Loaded {len(trackers)} trackers to monitor")
         return trackers
     
