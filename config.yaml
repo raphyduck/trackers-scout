@@ -165,19 +165,21 @@ trackers:
   # TheOldSchool - Music tracker (oldies/classic)
   - name: "TheOldSchool"
     enabled: true
-    url: "https://theoldschool.cc/"
-    signup_url: "https://theoldschool.cc/register.php"
+    url: "https://theoldschool.cc/application"
+    signup_url: "https://theoldschool.cc/application"
     method: "text_match"
     match_text:
-      - "registration"
-      - "sign up"
-      - "create account"
-      - "register now"
+      - "inscription"
+      - "candidature"
+      - "postuler"
+      - "créer un compte"
+      - "formulaire"
     not_match_text:
-      - "closed"
-      - "invite only"
-      - "registration disabled"
-      - "signup disabled"
+      - "fermé"
+      - "ferme"
+      - "indisponible"
+      - "invitation"
+      - "désactivé"
 
   # Add your custom tracker here
   - name: "CustomTracker"
