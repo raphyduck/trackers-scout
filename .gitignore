@@ -31,3 +31,4 @@ Thumbs.db
 *.orig-*
 *.bak-*
 *.bak.*
+config/
