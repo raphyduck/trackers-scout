@@ -28,3 +28,6 @@ state.json
 # OS
 .DS_Store
 Thumbs.db
+*.orig-*
+*.bak-*
+*.bak.*

@@ -1,5 +1,7 @@
 services:
   tracker-monitor:
+    mem_limit: 256m
+    memswap_limit: 256m
     build: .
     container_name: tracker-monitor
     restart: unless-stopped
