@@ -4,6 +4,12 @@ services:
     memswap_limit: 256m
     build: .
     container_name: tracker-monitor
+    healthcheck:
+      test: ["CMD", "python", "/config/healthcheck.py"]
+      interval: 5m
+      timeout: 10s
+      start_period: 30s
+      retries: 3
     restart: unless-stopped
     user: "${UID:-1000}:${GID:-1000}"
     volumes:
